@@ -1,0 +1,5 @@
+.stack-work/
+spotify-graph.cabal
+*~
+*.db
+*.db-journal
