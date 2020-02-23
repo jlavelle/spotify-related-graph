@@ -49,40 +49,40 @@ newtype Token = Token Text
 instance Wrapped Token
 
 data Artist = Artist
-  { _artistExternalUrls :: Map Text Url
-  , _artistFollowers    :: Followers
-  , _artistGenres       :: Vector Text
-  , _artistHref         :: Url
-  , _artistId           :: SpotifyId
-  , _artistImages       :: Vector Image
-  , _artistName         :: Text
-  , _artistPopularity   :: Int
-  , _artistUri          :: SpotifyUri
-  }
+  { externalUrls :: Map Text Url
+  , followers    :: Followers
+  , genres       :: Vector Text
+  , href         :: Url
+  , id           :: SpotifyId
+  , images       :: Vector Image
+  , name         :: Text
+  , popularity   :: Int
+  , uri          :: SpotifyUri
+  } deriving Generic
 
 data Followers = Followers
-  { _followersHref  :: Maybe Url
-  , _followersTotal :: Int
-  }
+  { href  :: Maybe Url
+  , total :: Int
+  } deriving Generic
 
 data Image = Image
-  { _imageHeight :: Int
-  , _imageWidth  :: Int
-  , _imageUrl    :: Url
-  }
+  { height :: Int
+  , width  :: Int
+  , url    :: Url
+  } deriving Generic
 
 data TokenResponse = TokenResponse
-  { _tokenResponseAccessToken :: Token
-  , _tokenResponseTokenType   :: Text
-  , _tokenResponseExpiresIn   :: Int
-  }
+  { accessToken :: Token
+  , tokenType   :: Text
+  , expiresIn   :: Int
+  } deriving Generic
 
 data ArtistsResponse = ArtistsResponse
-  { _artistsResponseArtists :: Vector Artist
-  }
+  { artists :: Vector Artist
+  } deriving Generic
 
-$(A.deriveFromJSON (mkOpts "_followers") ''Followers)
-$(A.deriveFromJSON (mkOpts "_image") ''Image)
-$(A.deriveFromJSON (mkOpts "_artist") ''Artist)
-$(A.deriveFromJSON (mkOpts "_tokenResponse") ''TokenResponse)
-$(A.deriveFromJSON (mkOpts "_artistsResponse") ''ArtistsResponse)
+$(A.deriveFromJSON (mkOpts "") ''Followers)
+$(A.deriveFromJSON (mkOpts "") ''Image)
+$(A.deriveFromJSON (mkOpts "") ''Artist)
+$(A.deriveFromJSON (mkOpts "") ''TokenResponse)
+$(A.deriveFromJSON (mkOpts "") ''ArtistsResponse)

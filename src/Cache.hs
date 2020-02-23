@@ -8,10 +8,12 @@ import Protolude
 import Data.Vector (Vector)
 import qualified Data.Set as Set
 import Data.FileEmbed (embedFile)
-import Database.SQLite.Simple (Query(..), withTransaction, Connection, executeNamed, NamedParam(..), Only(..), execute_)
+import Database.SQLite.Simple (Query(..), Connection, executeNamed, NamedParam(..), Only(..))
 import qualified Database.SQLite.Simple as Sql
 import qualified Database.SQLite3 as Sqlite3
 import Linear.V2 (V2(..))
+import Control.Lens ((^.))
+import Data.Generics.Product (field)
 
 import Spotify.Api.Types
 
@@ -30,19 +32,19 @@ insertArtistRelation conn id1 id2 = executeNamed conn q ps
 insertArtist :: Connection -> Artist -> IO ()
 insertArtist conn Artist{..} =
      insertArtist'
-  *> insertGenres conn _artistId _artistGenres
-  *> insertImages conn _artistId _artistImages
+  *> insertGenres conn id genres
+  *> insertImages conn id images
   where
     insertArtist' =
       let
         ps =
-          [ ":id" := _artistId
-          , ":href" := _artistHref
-          , ":follower_href" := _followersHref _artistFollowers
-          , ":follower_count" := _followersTotal _artistFollowers
-          , ":artist_name" := _artistName
-          , ":popularity" := _artistPopularity
-          , ":uri" := _artistUri
+          [ ":id" := id
+          , ":href" := href
+          , ":follower_href" := followers ^. field @"href"
+          , ":follower_count" := total followers
+          , ":artist_name" := name
+          , ":popularity" := popularity
+          , ":uri" := uri
           ]
       in executeNamed conn q ps
     q = mkQuery $(embedFile "sql/insert_artist.sql")
@@ -63,9 +65,9 @@ insertImages conn id gs = traverse_ go gs
     go Image{..} =
       let
         ps =
-          [ ":href" := _imageUrl
-          , ":height" := _imageHeight
-          , ":width" := _imageWidth
+          [ ":href" := url
+          , ":height" := height
+          , ":width" := width
           , ":artist_id" := id
           ]
       in executeNamed conn q ps

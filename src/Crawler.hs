@@ -21,81 +21,83 @@ import Data.Aeson (FromJSON)
 import qualified Data.Set as Set
 import qualified Data.Vector as Vector
 import Data.Vector (Vector)
+import Control.Lens ((^.))
+import Data.Generics.Product (field)
 
 import Spotify.Api.Types
 import qualified Spotify.Api as Api
 import qualified Cache
 
 data Config = Config
-  { configVisited      :: TVar (Set SpotifyId)
-  , configIdQueue      :: TQueue SpotifyId
-  , configCacheQueue   :: TQueue (SpotifyId, Artist)
-  , configRateLock     :: MVar ()
-  , configConnection   :: Connection
-  , configCrawlers     :: Int
-  , configCachers      :: Int
-  , configCredentials  :: Credentials
+  { visited     :: TVar (Set SpotifyId)
+  , idQueue     :: TQueue SpotifyId
+  , cacheQueue  :: TQueue (SpotifyId, Artist)
+  , rateLock    :: MVar ()
+  , connection  :: Connection
+  , crawlers    :: Int
+  , cachers     :: Int
+  , credentials :: Credentials
   }
 
 initConfig :: IO Config
 initConfig = do
   Just clientId <- lookupEnv "SPOTIFY_GRAPH_CLIENT_ID"
   Just clientSecret <- lookupEnv "SPOTIFY_GRAPH_CLIENT_SECRET"
-  let configCredentials = Credentials $ Base64.encodeBase64' $ toS (clientId <> ":" <> clientSecret)
-  configConnection <- Sql.open "cache.db"
-  Cache.setupDb configConnection
-  configVisited <- Cache.selectArtistIds configConnection >>= atomically . newTVar
-  configIdQueue <- newTQueueIO
-  configCacheQueue <- newTQueueIO
-  configRateLock <- newMVar ()
-  let configCrawlers = 1
-      configCachers  = 1
+  let credentials = Credentials $ Base64.encodeBase64' $ toS (clientId <> ":" <> clientSecret)
+  connection <- Sql.open "cache.db"
+  Cache.setupDb connection
+  visited <- Cache.selectArtistIds connection >>= atomically . newTVar
+  idQueue <- newTQueueIO
+  cacheQueue <- newTQueueIO
+  rateLock <- newMVar ()
+  let crawlers = 1
+      cachers  = 1
   pure Config{..}
 
 loadArtist :: Config -> SpotifyId -> IO ()
 loadArtist Config{..} id = do
-  t <- getToken configCredentials
+  t <- getToken credentials
   a <- runReq $ Api.getArtist t id
-  v <- atomically $ readTVar configVisited
-  unless (Set.member (_artistId a) v) $ Cache.insertArtist configConnection a
+  v <- atomically $ readTVar visited
+  unless (Set.member (a ^. field @"id") v) $ Cache.insertArtist connection a
   atomically do
-    writeTQueue configIdQueue $ _artistId a
-    modifyTVar configVisited $ Set.insert $ _artistId a
+    writeTQueue idQueue $ a ^. field @"id"
+    modifyTVar visited $ Set.insert $ a ^. field @"id"
 
 mkCacher :: Config -> IO ()
 mkCacher Config{..} = loop
   where
     loop = do
-      (id, a) <- atomically $ readTQueue configCacheQueue
-      Sql.withTransaction configConnection do
-        Cache.insertArtist configConnection a
-        Cache.insertArtistRelation configConnection id $ _artistId a
+      (id, a) <- atomically $ readTQueue cacheQueue
+      Sql.withTransaction connection do
+        Cache.insertArtist connection a
+        Cache.insertArtistRelation connection id $ a ^. field @"id"
       loop
 
 mkCrawler :: Config -> IO ()
 mkCrawler Config{..} = do
-  i <- atomically $ readTQueue configIdQueue
-  t <- getToken configCredentials
+  i <- atomically $ readTQueue idQueue
+  t <- getToken credentials
   loop i t
   where
     loop id token = do
-      _  <- readMVar configRateLock
+      _  <- readMVar rateLock
       es <- try $ runReq $ Api.getRelatedArtists token id
       case es of
         Right as -> do
-          visited <- atomically $ readTVar configVisited
-          for_ (unvisited visited as) \a -> atomically do
-            modifyTVar configVisited $ Set.insert $ _artistId a
-            writeTQueue configCacheQueue (id, a)
-            writeTQueue configIdQueue $ _artistId a
-          id' <- atomically $ readTQueue configIdQueue
+          vs <- atomically $ readTVar visited
+          for_ (unvisited vs as) \a -> atomically do
+            modifyTVar visited $ Set.insert $ a ^. field @"id"
+            writeTQueue cacheQueue (id, a)
+            writeTQueue idQueue $ a ^. field @"id"
+          id' <- atomically $ readTQueue idQueue
           loop id' token
         Left (Req.VanillaHttpException e) -> case e of
           Http.HttpExceptionRequest _ c -> case c of
             Http.StatusCodeException r _ -> case Http.responseStatus r of
-              Http.Status 401 _ -> getToken configCredentials >>= loop id
+              Http.Status 401 _ -> getToken credentials >>= loop id
               Http.Status 429 _ -> do
-                mmv <- tryTakeMVar configRateLock
+                mmv <- tryTakeMVar rateLock
                 case mmv of
                   Nothing -> loop id token
                   Just _ -> do
@@ -103,7 +105,7 @@ mkCrawler Config{..} = do
                     case mwt of
                       Just wt -> threadDelayS $ wt + 1
                       Nothing -> throwIO e
-                    putMVar configRateLock ()
+                    putMVar rateLock ()
                     loop id token
               _ -> throwIO e
             _ -> throwIO e
@@ -111,7 +113,7 @@ mkCrawler Config{..} = do
         Left e -> throwIO e
 
 unvisited :: Set SpotifyId -> ArtistsResponse -> Vector Artist
-unvisited v = Vector.filter (not . (`Set.member` v) . _artistId) . _artistsResponseArtists
+unvisited v = Vector.filter (not . (`Set.member` v) . id) . artists
 
 lookupEnv :: Text -> IO (Maybe Text)
 lookupEnv =
@@ -121,7 +123,7 @@ lookupEnv =
     System.Environment.lookupEnv
 
 getToken :: Credentials -> IO Token
-getToken c = _tokenResponseAccessToken <$> runReq (Api.postCredentials c)
+getToken c = accessToken <$> runReq (Api.postCredentials c)
 
 runReq :: (FromJSON a, MonadIO m) => Req.Req (Req.JsonResponse a) -> m a
 runReq = fmap Req.responseBody . Req.runReq Req.defaultHttpConfig

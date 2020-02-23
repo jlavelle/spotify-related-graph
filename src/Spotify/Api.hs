@@ -8,7 +8,7 @@ import Control.Lens (review, _Unwrapped', Unwrapped, Wrapped)
 import qualified Network.HTTP.Req as Req
 import Network.HTTP.Req (MonadHttp, (=:), (/:))
 
-import Spotify.Api.Types
+import Spotify.Api.Types (TokenResponse, Artist, Token, Credentials, ArtistsResponse, SpotifyId)
 
 rootUrl :: Req.Url 'Req.Https
 rootUrl = Req.https "api.spotify.com" /: "v1"
