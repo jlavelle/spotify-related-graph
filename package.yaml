@@ -58,6 +58,8 @@ default-extensions:
 - NoMonomorphismRestriction
 - TypeApplications
 - OverloadedLabels
+- ConstraintKinds
+- ScopedTypeVariables
 
 ghc-options:
 - -Wall

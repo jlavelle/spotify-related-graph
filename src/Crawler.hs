@@ -4,10 +4,6 @@ module Crawler where
 
 import Protolude
 
-import qualified System.Environment
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.Text as T
-import Data.Profunctor (dimap)
 import Control.Concurrent.STM.TQueue (TQueue, newTQueueIO, readTQueue, writeTQueue)
 import Control.Concurrent.STM.TVar (TVar, newTVar, readTVar, modifyTVar)
 import Database.SQLite.Simple (Connection)
@@ -39,11 +35,29 @@ data Config = Config
   , credentials :: Credentials
   }
 
-initConfig :: IO Config
-initConfig = do
-  Just clientId <- lookupEnv "SPOTIFY_GRAPH_CLIENT_ID"
-  Just clientSecret <- lookupEnv "SPOTIFY_GRAPH_CLIENT_SECRET"
-  let credentials = Credentials $ Base64.encodeBase64' $ toS (clientId <> ":" <> clientSecret)
+newtype CrawlerM a = CrawlerM (ReaderT Config IO a)
+  deriving ( Functor
+           , Applicative
+           , Monad
+           , MonadReader Config
+           , MonadIO
+           )
+
+instance Req.MonadHttp CrawlerM where
+  handleHttpException = throwIO
+
+runCrawlerM :: CrawlerM a -> Config -> IO a
+runCrawlerM (CrawlerM rt) = runReaderT rt
+
+forkCrawlerM :: CrawlerM () -> CrawlerM ThreadId
+forkCrawlerM x = do
+  cfg <- ask
+  liftIO $ forkIO $ runCrawlerM x cfg
+
+type MonadCrawler m = (MonadReader Config m, Req.MonadHttp m)
+
+initConfig :: Credentials -> IO Config
+initConfig credentials = do
   connection <- Sql.open "cache.db"
   Cache.setupDb connection
   visited <- Cache.selectArtistIds connection >>= atomically . newTVar
@@ -54,58 +68,63 @@ initConfig = do
       cachers  = 1
   pure Config{..}
 
-loadArtist :: Config -> SpotifyId -> IO ()
-loadArtist Config{..} id = do
-  t <- getToken credentials
+loadArtist :: MonadCrawler m => SpotifyId -> m ()
+loadArtist id = do
+  Config{..} <- ask
+  t <- liftIO $ getToken credentials
   a <- runReq $ Api.getArtist t id
-  v <- atomically $ readTVar visited
-  unless (Set.member (a ^. field @"id") v) $ Cache.insertArtist connection a
-  atomically do
+  v <- liftIO $ atomically $ readTVar visited
+  unless (Set.member (a ^. field @"id") v) $ liftIO $ Cache.insertArtist connection a
+  liftIO $ atomically do
     writeTQueue idQueue $ a ^. field @"id"
     modifyTVar visited $ Set.insert $ a ^. field @"id"
 
-mkCacher :: Config -> IO ()
-mkCacher Config{..} = loop
+mkCacher :: MonadCrawler m => m ()
+mkCacher = loop
   where
     loop = do
-      (id, a) <- atomically $ readTQueue cacheQueue
-      Sql.withTransaction connection do
+      Config{..} <- ask
+      (id, a) <- liftIO $ atomically $ readTQueue cacheQueue
+      liftIO $ Sql.withTransaction connection do
         Cache.insertArtist connection a
         Cache.insertArtistRelation connection id $ a ^. field @"id"
       loop
 
-mkCrawler :: Config -> IO ()
-mkCrawler Config{..} = do
-  i <- atomically $ readTQueue idQueue
-  t <- getToken credentials
+mkCrawler :: forall m. MonadCrawler m => m ()
+mkCrawler = do
+  Config{..} <- ask
+  i <- liftIO $ atomically $ readTQueue idQueue
+  t <- liftIO $ getToken credentials
   loop i t
   where
+    loop :: SpotifyId -> Token -> m ()
     loop id token = do
-      _  <- readMVar rateLock
-      es <- try $ runReq $ Api.getRelatedArtists token id
+      Config {..} <- ask
+      _  <- liftIO $ readMVar rateLock
+      es <- liftIO $ try $ runReq $ Api.getRelatedArtists token id
       case es of
         Right as -> do
-          vs <- atomically $ readTVar visited
-          for_ (unvisited vs as) \a -> atomically do
+          vs <- liftIO $ atomically $ readTVar visited
+          liftIO $ for_ (unvisited vs as) \a -> atomically do
             modifyTVar visited $ Set.insert $ a ^. field @"id"
             writeTQueue cacheQueue (id, a)
             writeTQueue idQueue $ a ^. field @"id"
-          id' <- atomically $ readTQueue idQueue
+          id' <- liftIO $ atomically $ readTQueue idQueue
           loop id' token
         Left (Req.VanillaHttpException e) -> case e of
           Http.HttpExceptionRequest _ c -> case c of
             Http.StatusCodeException r _ -> case Http.responseStatus r of
-              Http.Status 401 _ -> getToken credentials >>= loop id
+              Http.Status 401 _ -> liftIO (getToken credentials) >>= loop id
               Http.Status 429 _ -> do
-                mmv <- tryTakeMVar rateLock
+                mmv <- liftIO $ tryTakeMVar rateLock
                 case mmv of
                   Nothing -> loop id token
                   Just _ -> do
                     let mwt = List.lookup "Retry-After" (Http.responseHeaders r) >>= parseInt
                     case mwt of
-                      Just wt -> threadDelayS $ wt + 1
+                      Just wt -> liftIO $ threadDelayS $ wt + 1
                       Nothing -> throwIO e
-                    putMVar rateLock ()
+                    liftIO $ putMVar rateLock ()
                     loop id token
               _ -> throwIO e
             _ -> throwIO e
@@ -114,13 +133,6 @@ mkCrawler Config{..} = do
 
 unvisited :: Set SpotifyId -> ArtistsResponse -> Vector Artist
 unvisited v = Vector.filter (not . (`Set.member` v) . id) . artists
-
-lookupEnv :: Text -> IO (Maybe Text)
-lookupEnv =
-  dimap
-    T.unpack
-    ((fmap . fmap) T.pack)
-    System.Environment.lookupEnv
 
 getToken :: Credentials -> IO Token
 getToken c = accessToken <$> runReq (Api.postCredentials c)
