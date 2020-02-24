@@ -20,7 +20,7 @@ data Error
   | ReqError Req.HttpException
 
 newtype Url = Url Text
-  deriving newtype (A.FromJSON, ToField)
+  deriving newtype (A.FromJSON, ToField, FromField)
   deriving Generic
 
 instance Wrapped Url
@@ -32,7 +32,7 @@ newtype SpotifyId = SpotifyId Text
 instance Wrapped SpotifyId
 
 newtype SpotifyUri = SpotifyUri Text
-  deriving newtype (A.FromJSON, ToField)
+  deriving newtype (A.FromJSON, ToField, FromField)
   deriving Generic
 
 instance Wrapped SpotifyUri
@@ -49,8 +49,7 @@ newtype Token = Token Text
 instance Wrapped Token
 
 data Artist = Artist
-  { externalUrls :: Map Text Url
-  , followers    :: Followers
+  { followers    :: Followers
   , genres       :: Vector Text
   , href         :: Url
   , id           :: SpotifyId
