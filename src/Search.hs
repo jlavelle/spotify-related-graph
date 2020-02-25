@@ -6,7 +6,6 @@ import Linear.V2 (V2(..))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Lens (view, (^.), ifoldl')
-import qualified Data.Vector as Vector
 
 import AStar (astarM, gcost, scores, edges)
 import Spotify (MonadSpotify(..), Artist)
@@ -23,5 +22,5 @@ relatedArtistsN a n = toEdgeSet <$> astarM a (0 :: Int) done (\_ _ -> pure 0) ne
           go i acc x = Set.insert (V2 i x) acc
     done _ s = pure $ maximumBy (comparing $ view gcost) (s ^. scores) ^. gcost >= n
     neighbors x _ = do
-      rs <- Vector.toList <$> getRelatedArtists x
-      pure $ Map.fromList $ zip rs $ repeat 1
+      rs <- getRelatedArtists x
+      pure $ foldl' (\acc y -> Map.insert y 1 acc) mempty rs
