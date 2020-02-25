@@ -19,7 +19,16 @@ import qualified Network.HTTP.Types as Http
 import qualified Data.Attoparsec.Text as A
 import qualified Data.List as List
 
-import Spotify (MonadSpotify(..), Artist, RelatedArtists(..), SpotifyId, Token, Credentials)
+import Spotify
+  ( MonadSpotify(..)
+  , Artist
+  , RelatedArtists(..)
+  , SpotifyId
+  , Token
+  , Credentials
+  , SearchParams
+  , SearchResponse
+  )
 import qualified Spotify.Api as Api
 import Cacheable (Cacheable)
 import qualified Cacheable
@@ -54,17 +63,23 @@ instance Req.MonadHttp AppM where
 instance MonadSpotify AppM where
   getArtist = Cacheable.withCache getArtistImpl
   getRelatedArtists = fmap (getField @"children") . Cacheable.withCache' (getField @"id") getRelatedArtistsImpl
+  search = Cacheable.withCache' hash searchImpl
 
 -- TODO Just use Typeable or something for the table names
 instance Cacheable AppM SpotifyId Artist where
-  cache  = Cacheable.mkCacheFn "Artist" (getField @"id")
+  cache  = Cacheable.mkCacheFn "Artist"
   lookup = Cacheable.mkLookupFn "Artist"
   allIds = Cacheable.mkAllIds "Artist"
 
 instance Cacheable AppM SpotifyId RelatedArtists where
-  cache  = Cacheable.mkCacheFn "RelatedArtists" (getField @"parent")
+  cache  = Cacheable.mkCacheFn "RelatedArtists"
   lookup = Cacheable.mkLookupFn "RelatedArtists"
   allIds = Cacheable.mkAllIds "RelatedArtists"
+
+instance Cacheable AppM Int SearchResponse where
+  cache  = Cacheable.mkCacheFn "SearchResponse"
+  lookup = Cacheable.mkLookupFn "SearchResponse"
+  allIds = Cacheable.mkAllIds "SearchResponse"
 
 runAppM :: AppM a -> Config -> IO a
 runAppM (unAppM -> m) c = runReaderT m c
@@ -82,12 +97,15 @@ initConfig cs = do
 -- TODO 404 Handling
 
 getArtistImpl :: SpotifyId -> AppM Artist
-getArtistImpl id = fmap Req.responseBody $ mkApiCall $ Api.getArtist id
+getArtistImpl = fmap Req.responseBody . mkApiCall . Api.getArtist
 
 getRelatedArtistsImpl :: Artist -> AppM RelatedArtists
 getRelatedArtistsImpl (getField @"id" -> id) = fmap go $ mkApiCall $ Api.getRelatedArtists id
   where
     go = RelatedArtists id . getField @"artists" . Req.responseBody
+
+searchImpl :: SearchParams -> AppM SearchResponse
+searchImpl = fmap Req.responseBody . mkApiCall . Api.getSearch
 
 getAccessToken :: AppM Token
 getAccessToken = do

@@ -50,6 +50,7 @@ dependencies:
 - time
 - transformers-base
 - vector
+- hashable
 
 default-extensions:
 - AllowAmbiguousTypes

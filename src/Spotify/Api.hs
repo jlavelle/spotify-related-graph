@@ -1,14 +1,24 @@
-{-# LANGUAGE DataKinds #-}
-
 module Spotify.Api where
 
-import Protolude
+import Protolude hiding (to)
 
-import Control.Lens (review, _Unwrapped', Unwrapped, Wrapped)
+import Control.Lens (review, _Unwrapped', Unwrapped, Wrapped, (^.), to)
 import qualified Network.HTTP.Req as Req
 import Network.HTTP.Req (MonadHttp, (=:), (/:))
+import Data.Generics.Product (field)
+import qualified Data.Text as T
 
-import Spotify.Api.Types (TokenResponse, Artist, Token, Credentials, RelatedArtistsResponse, SpotifyId)
+import Spotify.Api.Types
+  ( TokenResponse
+  , Credentials
+  , Artist
+  , SpotifyId
+  , Token
+  , RelatedArtistsResponse
+  , SearchParams
+  , SearchResponse
+  , SearchType(..)
+  )
 
 rootUrl :: Req.Url 'Req.Https
 rootUrl = Req.https "api.spotify.com" /: "v1"
@@ -31,6 +41,26 @@ getRelatedArtists id t = Req.req Req.GET url Req.NoReqBody Req.jsonResponse opts
   where
     url  = rootUrl /: "artists" /: unwrap id /: "related-artists"
     opts = tokenHeader t
+
+getSearch :: MonadHttp m => SearchParams -> Token -> m (Req.JsonResponse SearchResponse)
+getSearch ps t = Req.req Req.GET url Req.NoReqBody Req.jsonResponse opts
+  where
+    url  = rootUrl /: "search"
+    opts =
+         "q"      =: ps ^. field @"query"
+      <> "type"   =: ps ^. field @"searchType" ^. to printSearchType
+      <> "limit"  =: ps ^. field @"limit"
+      <> "offset" =: ps ^. field @"offset"
+      <> tokenHeader t
+
+printSearchType :: NonEmpty SearchType -> Text
+printSearchType = T.intercalate "," . toList . fmap showst
+  where
+    showst = \case
+      SAlbum    -> "album"
+      SArtist   -> "artist"
+      STrack    -> "track"
+      SPlaylist -> "playlist"
 
 tokenHeader :: Token -> Req.Option a
 tokenHeader t = Req.header "Authorization" $ "Bearer " <> toS (unwrap t)

@@ -10,6 +10,7 @@ import Spotify.Api.Types as Types
 class Monad m => MonadSpotify m where
   getArtist         :: SpotifyId -> m Artist
   getRelatedArtists :: Artist -> m (Vector Artist)
+  search            :: SearchParams -> m SearchResponse
 
 parseArtist :: Artist -> ArtistObject
 parseArtist (SpotifyObject p _) = case fromJSON p of

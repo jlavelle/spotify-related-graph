@@ -10,6 +10,7 @@ import Data.Vector (Vector)
 import Control.Lens.Wrapped (Wrapped)
 import Database.SQLite.Simple.ToField (ToField)
 import Database.SQLite.Simple.FromField (FromField)
+import Data.Hashable (Hashable)
 
 import AesonUtil (mkOpts)
 
@@ -44,6 +45,9 @@ instance Wrapped Token
 
 data ObjectType
   = TArtist
+  | TAlbumSimple
+  | TTrack
+  | TPlaylist
 
 data SpotifyObject (a :: ObjectType) = SpotifyObject
   { payload :: A.Value
@@ -56,14 +60,17 @@ instance Eq (SpotifyObject a) where
 instance Ord (SpotifyObject a) where
   compare (SpotifyObject _ a) (SpotifyObject _ b) = compare a b
 
-instance A.FromJSON (SpotifyObject 'TArtist) where
+instance A.FromJSON (SpotifyObject a) where
   parseJSON v@(A.Object o) = SpotifyObject v <$> o A..: "id"
   parseJSON _ = empty
 
-instance A.ToJSON (SpotifyObject 'TArtist) where
+instance A.ToJSON (SpotifyObject a) where
   toEncoding (SpotifyObject p _) = A.toEncoding p
 
 type Artist = SpotifyObject 'TArtist
+type AlbumSimple = SpotifyObject 'TAlbumSimple
+type Track = SpotifyObject 'TTrack
+type Playlist = SpotifyObject 'TPlaylist
 
 data ArtistObject = ArtistObject
   { followers  :: Followers
@@ -102,9 +109,46 @@ data RelatedArtists = RelatedArtists
   , children :: Vector Artist
   } deriving Generic
 
+data SearchType
+  = SAlbum
+  | SArtist
+  | STrack
+  | SPlaylist
+  deriving Generic
+
+instance Hashable SearchType
+
+data SearchParams = SearchParams
+  { query      :: Text
+  , searchType :: NonEmpty SearchType
+  , limit      :: Int
+  , offset     :: Int
+  } deriving Generic
+
+instance Hashable SearchParams
+
+data ResultContainer a = ResultContainer
+  { href     :: Url
+  , items    :: Vector a
+  , limit    :: Int
+  , next     :: Maybe Url
+  , offset   :: Int
+  , previous :: Maybe Url
+  , total    :: Int
+  } deriving Generic
+
+data SearchResponse = SearchResponse
+  { artists   :: Maybe (ResultContainer Artist)
+  , albums    :: Maybe (ResultContainer AlbumSimple)
+  , tracks    :: Maybe (ResultContainer Track)
+  , playlists :: Maybe (ResultContainer Playlist)
+  } deriving Generic
+
 $(A.deriveJSON (mkOpts "") ''Followers)
 $(A.deriveJSON (mkOpts "") ''Image)
 $(A.deriveJSON (mkOpts "") ''ArtistObject)
 $(A.deriveFromJSON (mkOpts "") ''TokenResponse)
 $(A.deriveJSON (mkOpts "") ''RelatedArtistsResponse)
 $(A.deriveJSON (mkOpts "") ''RelatedArtists)
+$(A.deriveJSON (mkOpts "") ''ResultContainer)
+$(A.deriveJSON (mkOpts "") ''SearchResponse)

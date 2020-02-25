@@ -22,7 +22,7 @@ import Database.SQLite.Simple.Extra (foldQuery_)
 
 -- TODO Invalidate function
 class Cacheable m i a | a -> i where
-  cache  :: a -> m ()
+  cache  :: i -> a -> m ()
   lookup :: i -> m (Maybe a)
   allIds :: m (Vector i)
 
@@ -40,18 +40,18 @@ withCache f i = do
   mr <- lookup i
   case mr of
     Just r  -> pure r
-    Nothing -> f i >>= \r -> cache r $> r
+    Nothing -> f i >>= \r -> cache i r $> r
 
 withCache' :: (Monad m, Cacheable m i a) => (b -> i) -> (b -> m a) -> b -> m a
 withCache' p f b = do
   mr <- lookup $ p b
   case mr of
     Just r  -> pure r
-    Nothing -> f b >>= \r -> cache r $> r
+    Nothing -> f b >>= \r -> cache (p b) r $> r
 
-mkCacheFn :: (SqliteCtx r m, ToJSON a, ToField i) => Text -> (a -> i) -> a -> m ()
-mkCacheFn tableName getId a = withCreateTable (toField $ getId a) tableName do
-  let ps = [":id" := getId a, ":data" := encode a ]
+mkCacheFn :: (SqliteCtx r m, ToJSON a, ToField i) => Text -> i -> a -> m ()
+mkCacheFn tableName i a = withCreateTable (toField i) tableName do
+  let ps = [":id" := i, ":data" := encode a ]
   pool <- ask <&> getField @"pool"
   withResource pool \conn -> liftIO $ executeNamed conn q ps
   where
