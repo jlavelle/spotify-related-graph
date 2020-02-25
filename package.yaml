@@ -20,46 +20,62 @@ extra-source-files:
 description:         Please see the README on GitHub at <https://github.com/githubuser/spotify-graph#readme>
 
 dependencies:
-- base >= 4.7 && < 5
 - aeson
-- lens
-- lens-aeson
-- sqlite-simple
-- protolude
-- req
-- containers
-- vector
-- text
-- bytestring
+- attoparsec
+- base >= 4.7 && < 5
 - base64
+- bytestring
+- containers
+- deferred-folds
+- direct-sqlite
+- exceptions
 - file-embed
-- linear
-- profunctors
-- stm
+- foldl
+- generic-lens
 - http-client
 - http-types
+- lens
+- lens-aeson
+- linear
+- monad-control
+- neat-interpolation
+- profunctors
+- protolude
+- psqueues
+- req
+- resource-pool
+- sqlite-simple
+- stm
+- text
 - time
-- attoparsec
-- direct-sqlite
-- generic-lens
+- transformers-base
+- vector
 
 default-extensions:
-- BlockArguments
-- OverloadedStrings
-- NoImplicitPrelude
-- DerivingStrategies
-- GeneralizedNewtypeDeriving
-- DeriveGeneric
-- StandaloneDeriving
 - AllowAmbiguousTypes
+- BlockArguments
+- ConstraintKinds
 - DataKinds
+- DefaultSignatures
+- DeriveGeneric
+- DerivingStrategies
 - DuplicateRecordFields
 - FlexibleContexts
+- FlexibleInstances
+- FunctionalDependencies
+- GeneralizedNewtypeDeriving
+- KindSignatures
+- LambdaCase
+- MultiParamTypeClasses
+- NoImplicitPrelude
 - NoMonomorphismRestriction
-- TypeApplications
 - OverloadedLabels
-- ConstraintKinds
+- OverloadedStrings
 - ScopedTypeVariables
+- StandaloneDeriving
+- TupleSections
+- TypeApplications
+- TypeFamilies
 
 ghc-options:
 - -Wall
