@@ -3,7 +3,7 @@ module Search where
 import Protolude
 
 import Linear.V2 (V2(..))
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Control.Lens (view, (^.), ifoldl')
 
