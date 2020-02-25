@@ -6,33 +6,29 @@ import Protolude
 
 import qualified Data.Aeson as A
 import qualified Data.Aeson.TH as A
-import qualified Network.HTTP.Req as Req
 import Data.Vector (Vector)
+import Control.Lens ((^.))
 import Control.Lens.Wrapped (Wrapped)
 import Database.SQLite.Simple.ToField (ToField)
 import Database.SQLite.Simple.FromField (FromField)
+import Data.Generics.Product (field)
 
 import AesonUtil (mkOpts)
 
-data Error
-  = InvalidCredentials
-  | ExpiredToken
-  | ReqError Req.HttpException
-
 newtype Url = Url Text
-  deriving newtype (A.FromJSON, ToField, FromField)
+  deriving newtype (A.FromJSON, A.ToJSON, ToField, FromField)
   deriving Generic
 
 instance Wrapped Url
 
 newtype SpotifyId = SpotifyId Text
-  deriving newtype (A.FromJSON, ToField, FromField, Eq, Ord)
+  deriving newtype (A.FromJSON, A.ToJSON, ToField, FromField, Eq, Ord)
   deriving Generic
 
 instance Wrapped SpotifyId
 
 newtype SpotifyUri = SpotifyUri Text
-  deriving newtype (A.FromJSON, ToField, FromField)
+  deriving newtype (A.FromJSON, A.ToJSON, ToField, FromField)
   deriving Generic
 
 instance Wrapped SpotifyUri
@@ -49,15 +45,21 @@ newtype Token = Token Text
 instance Wrapped Token
 
 data Artist = Artist
-  { followers    :: Followers
-  , genres       :: Vector Text
-  , href         :: Url
-  , id           :: SpotifyId
-  , images       :: Vector Image
-  , name         :: Text
-  , popularity   :: Int
-  , uri          :: SpotifyUri
+  { followers  :: Followers
+  , genres     :: Vector Text
+  , href       :: Url
+  , id         :: SpotifyId
+  , images     :: Vector Image
+  , name       :: Text
+  , popularity :: Int
+  , uri        :: SpotifyUri
   } deriving Generic
+
+instance Eq Artist where
+  a == b = a ^. field @"id" == b ^. field @"id"
+
+instance Ord Artist where
+  compare a b = compare (a ^. field @"id") (b ^. field @"id")
 
 data Followers = Followers
   { href  :: Maybe Url
@@ -76,12 +78,18 @@ data TokenResponse = TokenResponse
   , expiresIn   :: Int
   } deriving Generic
 
-data ArtistsResponse = ArtistsResponse
+data RelatedArtists = RelatedArtists
+  { parent   :: SpotifyId
+  , children :: Vector Artist
+  } deriving Generic
+
+data RelatedArtistsResponse = RelatedArtistsResponse
   { artists :: Vector Artist
   } deriving Generic
 
-$(A.deriveFromJSON (mkOpts "") ''Followers)
-$(A.deriveFromJSON (mkOpts "") ''Image)
-$(A.deriveFromJSON (mkOpts "") ''Artist)
+$(A.deriveJSON (mkOpts "") ''Followers)
+$(A.deriveJSON (mkOpts "") ''Image)
+$(A.deriveJSON (mkOpts "") ''Artist)
 $(A.deriveFromJSON (mkOpts "") ''TokenResponse)
-$(A.deriveFromJSON (mkOpts "") ''ArtistsResponse)
+$(A.deriveJSON (mkOpts "") ''RelatedArtistsResponse)
+$(A.deriveJSON (mkOpts "") ''RelatedArtists)

@@ -1,12 +1,10 @@
-module Spotify (MonadSpotify(..), module X) where
+module Spotify (MonadSpotify(..), module Types) where
 
 import Protolude
 import Data.Vector (Vector)
 
-import qualified Spotify.Api.Types as X
-import Spotify.Api.Types (Artist, Credentials, Token, SpotifyId)
+import Spotify.Api.Types as Types
 
 class Monad m => MonadSpotify m where
-  getAuthToken      :: Credentials -> m Token
-  getArtist         :: Token -> SpotifyId -> m Artist
-  getRelatedArtists :: Token -> SpotifyId -> m (Vector Artist)
+  getArtist         :: SpotifyId -> m Artist
+  getRelatedArtists :: Artist -> m (Vector Artist)
