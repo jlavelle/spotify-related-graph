@@ -8,7 +8,6 @@ import Linear.V2 (V2(..), _x, _y)
 import Control.Lens (Lens', _Wrapped', Wrapped, (%=), (.=), (^.), use, (<&>), ifor_)
 import Control.Lens.TH (makeLenses)
 import GHC.Generics (Generic)
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.OrdPSQ (OrdPSQ)
 import qualified Data.OrdPSQ as PSQ
