@@ -56,6 +56,7 @@ dependencies:
 - warp
 - wai
 - finite-typelits
+- unordered-containers
 
 default-extensions:
 - AllowAmbiguousTypes

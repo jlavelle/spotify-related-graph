@@ -9,9 +9,6 @@ import Servant.API
 import Servant
 import Data.Finite (Finite, getFinite)
 import Data.Finite.Orphans ()
-import qualified Control.Foldl as Foldl
-import qualified DeferredFolds.Unfoldl as Unfoldl
-import Control.Lens
 import Data.Generics.Product (getField)
 
 import Spotify (SpotifyId, MonadSpotify)
@@ -33,10 +30,7 @@ artist = fmap mkArtist . Spotify.getArtist
 related :: MonadSpotify m => SpotifyId -> Finite 4 -> m RelatedGraph
 related i (getFinite -> n) = do
   a <- Spotify.getArtist i
-  mkRelatedGraph <$> Search.relatedArtistsN a (fromIntegral n)
-  where
-    mkRelatedGraph g = RelatedGraph $ g & Search.hoistGraph toVec & Search.nodes %~ fmap mkArtist
-    toVec = Unfoldl.fold Foldl.vector . Unfoldl.foldable
+  RelatedGraph <$> Search.relatedArtistsN a (fromIntegral n)
 
 search :: (MonadIO m, MonadSpotify m) => Text -> m SearchResponse
 search q = toResponse <$> Spotify.search (Spotify.mkParams q [Spotify.SArtist] 20 0)

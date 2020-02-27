@@ -110,8 +110,8 @@ hoistGraph nat (Graph ns es) = Graph (nat ns) (nat es)
 initGraph :: a -> Graph i a
 initGraph a = Graph (Set.singleton a) Set.empty
 
-floodFillM :: (Ord i, Ord a, Monad m) => a -> (a -> i) -> (i -> m (Set a)) -> Int -> m (Graph i a)
-floodFillM start proj neighbors depth = execStateT (go 0 $ Set.singleton start) $ initGraph start
+bfsM :: (Ord i, Ord a, Monad m) => a -> (a -> i) -> (i -> m (Set a)) -> Int -> m (Graph i a)
+bfsM start proj neighbors depth = execStateT (go 0 $ Set.singleton start) $ initGraph start
   where
     go n s
       | n >= depth || Set.null s = pure ()
