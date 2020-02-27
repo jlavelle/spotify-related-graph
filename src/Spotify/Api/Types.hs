@@ -11,6 +11,7 @@ import Control.Lens.Wrapped (Wrapped)
 import Database.SQLite.Simple.ToField (ToField)
 import Database.SQLite.Simple.FromField (FromField)
 import Data.Hashable (Hashable)
+import Servant.API (FromHttpApiData)
 
 import AesonUtil (mkOpts)
 
@@ -21,7 +22,7 @@ newtype Url = Url Text
 instance Wrapped Url
 
 newtype SpotifyId = SpotifyId Text
-  deriving newtype (A.FromJSON, A.ToJSON, ToField, FromField, Eq, Ord)
+  deriving newtype (A.FromJSON, A.ToJSON, ToField, FromField, Eq, Ord, FromHttpApiData)
   deriving Generic
 
 instance Wrapped SpotifyId

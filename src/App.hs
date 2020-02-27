@@ -18,6 +18,7 @@ import qualified Network.HTTP.Client as Http
 import qualified Network.HTTP.Types as Http
 import qualified Data.Attoparsec.Text as A
 import qualified Data.List as List
+import qualified Servant.Server as Servant
 
 import Spotify
   ( MonadSpotify(..)
@@ -32,6 +33,7 @@ import Spotify
 import qualified Spotify.Api as Api
 import Cacheable (Cacheable)
 import qualified Cacheable
+import qualified Server
 
 data Config = Config
   { pool        :: Pool Sql.Connection
@@ -62,7 +64,7 @@ instance Req.MonadHttp AppM where
 
 instance MonadSpotify AppM where
   getArtist = Cacheable.withCache getArtistImpl
-  getRelatedArtists = fmap (getField @"children") . Cacheable.withCache' (getField @"id") getRelatedArtistsImpl
+  getRelatedArtists = fmap (getField @"children") . Cacheable.withCache getRelatedArtistsImpl
   search = Cacheable.withCache' hash searchImpl
 
 -- TODO Just use Typeable or something for the table names
@@ -84,6 +86,11 @@ instance Cacheable AppM Int SearchResponse where
 runAppM :: AppM a -> Config -> IO a
 runAppM (unAppM -> m) c = runReaderT m c
 
+app :: Config -> Servant.Application
+app cfg = Servant.serve api $ Servant.hoistServer api (liftIO . flip runAppM cfg) Server.server
+  where
+    api = Proxy @Server.Api
+
 initConfig :: Credentials -> IO Config
 initConfig cs = do
   token    <- getTokenIO cs >>= newMVar
@@ -99,8 +106,8 @@ initConfig cs = do
 getArtistImpl :: SpotifyId -> AppM Artist
 getArtistImpl = fmap Req.responseBody . mkApiCall . Api.getArtist
 
-getRelatedArtistsImpl :: Artist -> AppM RelatedArtists
-getRelatedArtistsImpl (getField @"id" -> id) = fmap go $ mkApiCall $ Api.getRelatedArtists id
+getRelatedArtistsImpl :: SpotifyId -> AppM RelatedArtists
+getRelatedArtistsImpl id = fmap go $ mkApiCall $ Api.getRelatedArtists id
   where
     go = RelatedArtists id . getField @"artists" . Req.responseBody
 

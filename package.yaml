@@ -51,6 +51,11 @@ dependencies:
 - transformers-base
 - vector
 - hashable
+- servant
+- servant-server
+- warp
+- wai
+- finite-typelits
 
 default-extensions:
 - AllowAmbiguousTypes
@@ -72,11 +77,13 @@ default-extensions:
 - NoMonomorphismRestriction
 - OverloadedLabels
 - OverloadedStrings
+- RankNTypes
 - ScopedTypeVariables
 - StandaloneDeriving
 - TupleSections
 - TypeApplications
 - TypeFamilies
+- TypeOperators
 
 ghc-options:
 - -Wall
